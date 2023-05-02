@@ -21,6 +21,9 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 app.use('/', users);
 app.use('/', cards);
+app.use((req, res) => {
+  res.status(404).send({ message: 'Страница не найдена' });
+});
 
 mongoose
   .connect('mongodb://127.0.0.1/mestodb')
