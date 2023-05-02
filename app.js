@@ -2,6 +2,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
+const helmet = require('helmet');
 const users = require('./routes/users');
 const cards = require('./routes/cards');
 
@@ -16,6 +17,7 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use(helmet());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
