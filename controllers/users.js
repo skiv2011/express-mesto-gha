@@ -1,6 +1,7 @@
 const errorCodes = require('../utils/ErrorCodes');
 const UserNotFoundError = require('../utils/UserNotFoundError');
 const User = require('../models/user');
+const jwt = require('jsonwebtoken');
 
 module.exports.getUsers = (req, res) => {
   User.find({})
@@ -34,9 +35,19 @@ module.exports.getUser = (req, res) => {
 };
 
 module.exports.createUser = (req, res) => {
-  const { name, about, avatar } = req.body;
+  const {
+    name,
+    about,
+    avatar,
+    email,
+    password, } = req.body;
 
-  User.create({ name, about, avatar })
+  User.create({
+    name,
+    about,
+    avatar,
+    email,
+    password, })
     .then((user) => res.status(201).send({ data: user }))
     .catch((err) => {
       if (err.name === 'ValidationError') {
@@ -122,5 +133,26 @@ module.exports.updateAvatar = (req, res) => {
         return;
       }
       res.status(errorCodes.DEFAULT_ERROR).send({ message: 'Произошла ошибка' });
+    });
+};
+
+module.exports.login = (req, res) => {
+  const { email, password } = req.body;
+  return User.findUserByCredentials(email, password)
+    .then((user) => {
+      const token = jwt.sign({ _id: user._id }, 'some-secret-key', '7d');
+      res
+        .cookie('jwt', token, {
+          maxAge: 3600000,
+          httpOnly: true,
+          sameSite: true
+        })
+        .end();
+    })
+    .catch((err) => {
+      // ошибка аутентификации
+      res
+        .status(401)
+        .send({ message: err.message });
     });
 };
