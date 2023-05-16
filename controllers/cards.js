@@ -34,13 +34,17 @@ module.exports.deleteCard = async (req, res, next) => {
       return;
     }
     if (req.user._id !== card.owner.toString()) {
-      next(new ForbiddenError('Это не ваша карточка! Удаляйте свои!'));
+      next(new ForbiddenError('Это не ваша карточка!'));
       return;
     }
     const deletedCard = await Card.findByIdAndRemove(req.params.cardId);
     res.status(statusCode.OK).send(deletedCard);
   } catch (err) {
-    next(err);
+    if (err instanceof mongoose.Error.CastError) {
+      next(new ValidationError('Неверный формат id карточки.'));
+    } else {
+      next(err);
+    }
   }
 };
 

@@ -3,6 +3,12 @@ const AuthDataError = require('../errors/auth-err');
 
 const auth = async (req, res, next) => {
   const { token } = req.cookies;
+
+  if (!token) {
+    next(new AuthDataError('Необходима авторизация.'));
+    return;
+  }
+
   let payload;
   try {
     payload = jwt.verify(token, 'dev-secret');

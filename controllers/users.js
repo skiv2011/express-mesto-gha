@@ -109,7 +109,10 @@ module.exports.updateUser = async (req, res, next) => {
   try {
     const user = await User.findByIdAndUpdate(
       req.user._id,
-      req.body,
+      {
+        name: req.body.name,
+        about: req.body.about,
+      },
       mongoUpdateConfig,
     );
     res.status(statusCode.OK).send(user);
