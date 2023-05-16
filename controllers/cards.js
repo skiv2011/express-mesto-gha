@@ -1,106 +1,83 @@
-const errorCodes = require('../utils/ErrorCodes');
-const CardNotFoundError = require('../utils/CardNotFoundError');
+const mongoose = require('mongoose');
+const { statusCode } = require('../utils/errors');
 const Card = require('../models/card');
+const ValidationError = require('../errors/validation-err');
+const ForbiddenError = require('../errors/forbidden-err');
+const NotFoundError = require('../errors/not-found-err');
 
-module.exports.getCards = (req, res) => {
-  Card.find({})
-    .then((cards) => res.send({ data: cards }))
-    .catch(() => res
-      .status(errorCodes.DEFAULT_ERROR)
-      .send({ message: 'Произошла ошибка' }));
+const mongoPatchConfig = { new: true };
+
+module.exports.getCards = async (req, res, next) => {
+  try {
+    const cards = await Card.find({});
+    res.status(statusCode.OK).send(cards);
+  } catch (err) {
+    next(err);
+  }
 };
 
-module.exports.createCard = (req, res) => {
-  const { name, link } = req.body;
-  const owner = req.user._id; // Используем _id из объекта req.user
-  Card.create({ name, link, owner })
-    .then((card) => res.status(201).send({ data: card }))
-    .catch((err) => {
-      if (err.name === 'ValidationError') {
-        res.status(errorCodes.BAD_REQUEST_ERROR).send({
-          message: 'Переданы некорректные данные при создании карточки.',
-        });
-        return;
-      }
-      res
-        .status(errorCodes.DEFAULT_ERROR)
-        .send({ message: 'Произошла ошибка' });
-    });
+module.exports.createCard = async (req, res, next) => {
+  try {
+    const { name, link } = req.body;
+    const newCard = await Card.create({ name, link, owner: req.user._id });
+    res.status(statusCode.OK).send(newCard);
+  } catch (err) {
+    next(err);
+  }
 };
 
-module.exports.deleteCard = (req, res) => {
-  Card.findByIdAndRemove(req.params.cardId)
-    .then((card) => {
-      if (!card) throw new CardNotFoundError();
-      res.send({ data: card });
-    })
-    .catch((err) => {
-      if (err instanceof CardNotFoundError) {
-        res.status(err.code).send({ message: err.message });
-        return;
-      }
-      if (err.name === 'CastError') {
-        res.status(errorCodes.BAD_REQUEST_ERROR).send({
-          message: 'Переданы некорректные данные при поиске карточки.',
-        });
-        return;
-      }
-      res.status(errorCodes.DEFAULT_ERROR).send({ message: 'Произошла ошибка' });
-    });
+module.exports.deleteCard = async (req, res, next) => {
+  try {
+    const card = await Card.findById(req.params.cardId);
+    if (!card) {
+      next(new NotFoundError('Карточка с таким таким id не найдена.'));
+      return;
+    }
+    if (req.user._id !== card.owner.toString()) {
+      next(new ForbiddenError('Это не ваша карточка! Удаляйте свои!'));
+      return;
+    }
+    const deletedCard = await Card.findByIdAndRemove(req.params.cardId);
+    res.status(statusCode.OK).send(deletedCard);
+  } catch (err) {
+    next(err);
+  }
 };
 
-module.exports.likeCard = (req, res) => {
-  Card.findByIdAndUpdate(
-    req.params.cardId,
-    { $addToSet: { likes: req.user._id } },
-    { new: true },
-  )
-    .then((card) => {
-      if (!card) throw new CardNotFoundError();
-      res.send({ data: card });
-    })
-    .catch((err) => {
-      if (err instanceof CardNotFoundError) {
-        res.status(err.code).send({ message: err.message });
-        return;
-      }
-      if (err.name === 'CastError') {
-        res.status(errorCodes.BAD_REQUEST_ERROR).send({
-          message: 'Переданы некорректные данные при поиске карточки.',
-        });
-        return;
-      }
-      res
-        .status(errorCodes.DEFAULT_ERROR)
-        .send({ message: 'Произошла ошибка' });
-    });
+module.exports.likeCard = async (req, res, next) => {
+  try {
+    const card = await Card.findByIdAndUpdate(
+      req.params.cardId,
+      { $addToSet: { likes: req.user._id } },
+      mongoPatchConfig,
+    );
+    if (!card) {
+      next(new NotFoundError('Карточка с таким таким id не найдена.'));
+      return;
+    }
+    res.status(statusCode.OK).send(card);
+  } catch (err) {
+    next(err);
+  }
 };
 
-module.exports.deleteLikeCard = (req, res) => {
-  Card.findByIdAndUpdate(
-    req.params.cardId,
-    { $pull: { likes: req.user._id } },
-    { new: true },
-  )
-    .then((card) => {
-      // eslint-disable-next-line no-lone-blocks
-      if (!card) throw new CardNotFoundError(); {
-        res.send({ data: card });
-      }
-    })
-    .catch((err) => {
-      if (err instanceof CardNotFoundError) {
-        res.status(err.code).send({ message: err.message });
-        return;
-      }
-      if (err.name === 'CastError') {
-        res.status(errorCodes.BAD_REQUEST_ERROR).send({
-          message: 'Переданы некорректные данные при поиске карточки.',
-        });
-        return;
-      }
-      res
-        .status(errorCodes.DEFAULT_ERROR)
-        .send({ message: 'Произошла ошибка' });
-    });
+module.exports.deleteLikeCard = async (req, res, next) => {
+  try {
+    const card = await Card.findByIdAndUpdate(
+      req.params.cardId,
+      { $pull: { likes: req.user._id } },
+      mongoPatchConfig,
+    );
+    if (!card) {
+      next(new NotFoundError('Карточка с таким таким id не найдена.'));
+      return;
+    }
+    res.status(statusCode.OK).send(card);
+  } catch (err) {
+    if (err instanceof mongoose.Error.CastError) {
+      next(new ValidationError('Неверный формат у id карточки.'));
+    } else {
+      next(err);
+    }
+  }
 };
